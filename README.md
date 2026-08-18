@@ -1,4 +1,4 @@
-# AURA AI — AI Smart Automation Agent (Dark Theme UI + Animated Mascot)
+# AURA AI — AI Smart Automation Agent 
 
 A lightweight, enterprise-ready AI productivity web application that processes documents, pastes text, and executes **Summarization**, **Grounded Q&A**, **Content Generation**, and **Document Intelligence Analysis** with an interactive **Cute Animated Smiley Mascot** and **Intelligent Suggested Next Actions**.
 
