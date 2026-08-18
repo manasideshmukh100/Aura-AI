@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Smart Automation Agent — Dark Theme UI</title>
+  <meta name="description" content="AI-powered document intelligence agent for text summarization, grounded Q&A, content generation, and document analysis with a cute animated mascot.">
+  
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient Dark Background Elements -->
+  <div class="ambient-glow orb-1"></div>
+  <div class="ambient-glow orb-2"></div>
+  <div class="stars-container" id="starsContainer"></div>
+
+  <div class="app-container">
+    <!-- Top Navigation Bar -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
+            <path d="M12 12L2.1 12a10 10 0 0 1 17.8-5.5"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">AURA AI</span>
+          <span class="brand-badge">Automation Agent v1.0</span>
+        </div>
+      </div>
+
+      <div class="nav-controls">
+        <button id="apiKeyBtn" class="glass-btn btn-sm" title="Configure API Keys">
+          <span class="status-dot green"></span>
+          <span id="apiStatusText">Engine Ready</span>
+        </button>
+        <button id="historyToggleBtn" class="glass-btn btn-sm">
+          <span>📜 History</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Hero & Mascot Section -->
+    <section class="hero-section">
+      <div class="mascot-stage">
+        <!-- Cute Animated SVG Smiley Mascot -->
+        <div class="mascot-wrapper" id="mascotWrapper" title="Click me to play!">
+          <div class="mascot-aura"></div>
+          <svg id="smileyMascot" width="130" height="130" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="mascotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#a78bfa" />
+                <stop offset="50%" stop-color="#8b5cf6" />
+                <stop offset="100%" stop-color="#6d28d9" />
+              </linearGradient>
+              <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="6" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            <!-- Outer Pulse Ring -->
+            <circle class="mascot-ring" cx="60" cy="60" r="54" fill="none" stroke="rgba(167, 139, 250, 0.4)" stroke-width="2" stroke-dasharray="6 6" />
+
+            <!-- Body Blob -->
+            <circle class="mascot-body" cx="60" cy="60" r="46" fill="url(#mascotGrad)" filter="url(#glow)" />
+
+            <!-- Cute Cheeks -->
+            <circle class="mascot-cheek left" cx="34" cy="66" r="6" fill="rgba(244, 114, 182, 0.45)" />
+            <circle class="mascot-cheek right" cx="86" cy="66" r="6" fill="rgba(244, 114, 182, 0.45)" />
+
+            <!-- Eyes (Dynamic state: idle, thinking, happy, sad) -->
+            <g id="mascotEyes">
+              <!-- Idle Eyes -->
+              <ellipse class="eye left" cx="42" cy="52" rx="4.5" ry="6" fill="#ffffff" />
+              <ellipse class="eye right" cx="78" cy="52" rx="4.5" ry="6" fill="#ffffff" />
+            </g>
+
+            <!-- Mouth (Dynamic state) -->
+            <path id="mascotMouth" d="M 44 68 Q 60 80 76 68" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+          </svg>
+        </div>
+
+        <!-- Mascot Speech Bubble -->
+        <div class="speech-bubble" id="speechBubble">
+          <p id="mascotMessage">Hi there! What document or task would you like me to process today? ✨</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Workspace Layout -->
+    <main class="workspace-grid">
+      <!-- Left Panel: Input & Control -->
+      <section class="panel glass-card input-panel">
+        <div class="panel-header">
+          <h2>1. Input Document</h2>
+          <span class="step-num">Step 1</span>
+        </div>
+
+        <!-- Document Input Options (Tabs) -->
+        <div class="input-tabs">
+          <button class="tab-btn active" data-tab="paste">Paste Text</button>
+          <button class="tab-btn" data-tab="upload">Upload File (.txt, .pdf)</button>
+          <button class="tab-btn" data-tab="samples">Sample Docs</button>
+        </div>
+
+        <!-- Tab 1: Paste Text -->
+        <div class="tab-content active" id="pasteTab">
+          <textarea id="documentInput" placeholder="Paste your article, meeting notes, project requirements, or email thread here..." rows="8"></textarea>
+          <div class="input-meta">
+            <span id="charCount">0 characters</span>
+            <button id="clearInputBtn" class="text-link">Clear</button>
+          </div>
+        </div>
+
+        <!-- Tab 2: Upload File -->
+        <div class="tab-content" id="uploadTab">
+          <div class="drop-zone" id="dropZone">
+            <div class="drop-icon">📁</div>
+            <p class="drop-title">Drag & drop your file here</p>
+            <p class="drop-sub">Supports .txt, .pdf, .md, .csv (Max 5MB)</p>
+            <input type="file" id="fileInput" accept=".txt,.pdf,.md,.csv,.json" hidden>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('fileInput').click()">Browse File</button>
+          </div>
+          <div id="fileInfo" class="file-info-badge hidden">
+            <span class="file-icon">📄</span>
+            <span id="fileName">document.pdf</span>
+            <button id="removeFileBtn" class="close-icon">&times;</button>
+          </div>
+        </div>
+
+        <!-- Tab 3: Sample Documents -->
+        <div class="tab-content" id="samplesTab">
+          <p class="sample-intro">Click any pre-loaded sample document to test immediately:</p>
+          <div class="sample-buttons">
+            <button class="sample-chip" data-sample="project">🚀 Tech Project Specification</button>
+            <button class="sample-chip" data-sample="sales">📈 Sales & Performance Brief</button>
+            <button class="sample-chip" data-sample="feedback">💬 Customer Feedback & Reviews</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Action Selector Section -->
+        <div class="panel-header margin-top">
+          <h2>2. Choose Action</h2>
+          <span class="step-num">Step 2</span>
+        </div>
+
+        <div class="action-grid">
+          <button class="action-card active" data-action="summarize">
+            <div class="action-icon">📝</div>
+            <div class="action-label">Summarize</div>
+          </button>
+          <button class="action-card" data-action="qa">
+            <div class="action-icon">❓</div>
+            <div class="action-label">Ask Q&A</div>
+          </button>
+          <button class="action-card" data-action="generate">
+            <div class="action-icon">✨</div>
+            <div class="action-label">Generate</div>
+          </button>
+          <button class="action-card" data-action="analyze">
+            <div class="action-icon">📊</div>
+            <div class="action-label">Analyze</div>
+          </button>
+        </div>
+
+        <!-- Sub Options based on selected action -->
+        <div class="sub-options" id="subOptions">
+          <!-- Summarize Sub Options -->
+          <div class="sub-group" id="summarizeGroup">
+            <label>Summary Detail Level:</label>
+            <select id="summaryLengthSelect" class="glass-select">
+              <option value="medium" selected>Medium (3-4 Bullet Points)</option>
+              <option value="short">Short (Quick 1-2 Sentences)</option>
+              <option value="detailed">Detailed (Full Structured Breakdown)</option>
+            </select>
+          </div>
+
+          <!-- Q&A Sub Options -->
+          <div class="sub-group hidden" id="qaGroup">
+            <label>Your Question:</label>
+            <input type="text" id="questionInput" class="glass-input" placeholder="e.g. What are the key project deadlines mentioned?">
+          </div>
+
+          <!-- Generate Sub Options -->
+          <div class="sub-group hidden" id="generateGroup">
+            <label>Instruction / Prompt:</label>
+            <input type="text" id="instructionInput" class="glass-input" placeholder="e.g. Write a professional follow-up email based on this document">
+          </div>
+
+          <!-- Analyze Sub Options -->
+          <div class="sub-group hidden" id="analyzeGroup">
+            <p class="sub-desc">Extracts key takeaways, action items, metrics, and sentiment/tone.</p>
+          </div>
+        </div>
+
+        <!-- Execute Primary Button -->
+        <button id="runActionBtn" class="btn btn-primary btn-block glow-button margin-top">
+          <span class="btn-text">Run AI Agent</span>
+          <span class="btn-spinner hidden" id="btnSpinner"></span>
+        </button>
+      </section>
+
+      <!-- Right Panel: Output & Next Suggestions -->
+      <section class="panel glass-card result-panel">
+        <div class="panel-header">
+          <h2>3. Agent Output</h2>
+          <div class="result-badges">
+            <span id="engineBadge" class="mode-badge">Ready</span>
+          </div>
+        </div>
+
+        <!-- Output Content Area -->
+        <div class="result-body" id="resultBody">
+          <div class="empty-state">
+            <div class="empty-icon">🔮</div>
+            <h3>Waiting for Action</h3>
+            <p>Select your input document on the left, choose an action, and click <strong>Run AI Agent</strong> to generate insights!</p>
+          </div>
+        </div>
+
+        <!-- Suggested Next Actions Bar -->
+        <div class="suggested-section hidden" id="suggestedSection">
+          <div class="suggested-title">
+            <span>✨ Suggested Next Steps:</span>
+          </div>
+          <div class="suggested-chips" id="suggestedChips">
+            <!-- Chips dynamically injected -->
+          </div>
+        </div>
+
+        <!-- Action Bar (Copy / Export) -->
+        <div class="result-footer hidden" id="resultFooter">
+          <button id="copyResultBtn" class="glass-btn btn-sm">📋 Copy Output</button>
+          <button id="downloadResultBtn" class="glass-btn btn-sm">📥 Download (.md)</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- History Drawer Modal -->
+  <div class="modal-backdrop hidden" id="historyModal">
+    <div class="modal-card glass-card">
+      <div class="modal-header">
+        <h3>📜 Processing History</h3>
+        <button id="closeHistoryBtn" class="close-icon">&times;</button>
+      </div>
+      <div class="modal-body" id="historyList">
+        <p class="empty-history">No prior runs recorded in this session.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Key Modal -->
+  <div class="modal-backdrop hidden" id="apiModal">
+    <div class="modal-card glass-card">
+      <div class="modal-header">
+        <h3>🔑 Configure AI Engine</h3>
+        <button id="closeApiBtn" class="close-icon">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Optional: Enter your API key to connect directly to live LLMs (Gemini or Claude). If blank, AURA AI automatically uses the built-in Smart Agent Engine!</p>
+        
+        <div class="form-group margin-top">
+          <label>Google Gemini API Key:</label>
+          <input type="password" id="geminiKeyInput" class="glass-input" placeholder="AIzaSy...">
+        </div>
+        
+        <div class="form-group margin-top">
+          <label>Anthropic Claude API Key:</label>
+          <input type="password" id="claudeKeyInput" class="glass-input" placeholder="sk-ant-...">
+        </div>
+      </div>
+      <div class="modal-footer margin-top">
+        <button id="saveApiKeysBtn" class="btn btn-primary">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="mascot.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
