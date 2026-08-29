@@ -3,7 +3,7 @@
  * Connects Frontend UI, Mascot Engine, Backend FastAPI REST API, and Smart Fallback.
  */
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://aura-ai-fehn.onrender.com/api';
 
 // Pre-loaded Sample Documents
 const SAMPLE_DOCUMENTS = {
