@@ -30,10 +30,16 @@ def call_llm_api(prompt: str, system_prompt: str = "") -> Optional[str]:
             from google import genai
             client = genai.Client(api_key=GEMINI_KEY)
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=full_prompt
-            )
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=full_prompt
+                )
+            except Exception:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=full_prompt
+                )
             if response and response.text:
                 return response.text.strip()
         except Exception as e:
@@ -106,7 +112,7 @@ def summarize(text: str, length: str = "medium") -> Dict[str, Any]:
 def answer_question(text: str, question: str) -> Dict[str, Any]:
     """
     Feature 2: Grounded Question Answering
-    Answers questions grounded strictly in the provided document context.
+    Answers questions grounded strictly in the provided document context with source citations.
     """
     if not text.strip():
         return {"error": "Document context is empty."}
@@ -114,8 +120,11 @@ def answer_question(text: str, question: str) -> Dict[str, Any]:
         return {"error": "Please provide a question to answer."}
 
     system_prompt = (
-        "You are an AI Question Answering Agent. Answer the question using ONLY the provided text context. "
-        "If the answer cannot be found in the text, explicitly state: 'The provided document does not contain enough information to answer this question.'"
+        "You are an AI Question Answering Agent. Answer the question using ONLY the provided text context.\n"
+        "RULES:\n"
+        "1. If the provided text contains enough information to answer, provide a clear, accurate answer.\n"
+        "2. At the end of your answer, you MUST include a source attribution line formatted as: 'Source: paragraph X' (or 'Source: page X, paragraph Y', or a short exact quoted snippet from the text).\n"
+        "3. If the provided document does NOT contain enough information to answer the question, state explicitly: 'The provided document does not contain enough information to answer this question.' and do NOT include any Source citation tag or attribution."
     )
     prompt = f"DOCUMENT CONTEXT:\n\"\"\"\n{text}\n\"\"\"\n\nUSER QUESTION: {question}"
 
@@ -124,24 +133,34 @@ def answer_question(text: str, question: str) -> Dict[str, Any]:
         return {"result": llm_result, "mode": "api"}
 
     # Smart fallback Q&A engine
-    q_words = set(re.findall(r'\w+', question.lower())) - {"what", "is", "the", "how", "why", "where", "who", "when", "does", "do", "in", "on", "a", "an", "to"}
-    sentences = re.split(r'(?<=[.!?])\s+', text)
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if not paragraphs:
+        paragraphs = [text.strip()]
+
+    q_words = set(re.findall(r'\w+', question.lower())) - {
+        "what", "is", "the", "how", "why", "where", "who", "when", "does", "do",
+        "in", "on", "a", "an", "to", "for", "of", "and", "or", "with", "are", "was",
+        "were", "be", "been", "can", "could", "would", "should", "tell", "me", "about"
+    }
 
     matched_sentences = []
-    for s in sentences:
-        s_words = set(re.findall(r'\w+', s.lower()))
-        overlap = len(q_words.intersection(s_words))
-        if overlap > 0:
-            matched_sentences.append((overlap, s.strip()))
+    for p_idx, p in enumerate(paragraphs, start=1):
+        sentences = re.split(r'(?<=[.!?])\s+', p)
+        for s in sentences:
+            s_words = set(re.findall(r'\w+', s.lower()))
+            overlap = len(q_words.intersection(s_words))
+            if overlap > 0:
+                matched_sentences.append((overlap, s.strip(), p_idx))
 
     matched_sentences.sort(key=lambda x: x[0], reverse=True)
 
-    if matched_sentences:
-        top_answers = [m[1] for m in matched_sentences[:3]]
+    if matched_sentences and matched_sentences[0][0] >= 1:
+        top_answers = [m[1] for m in matched_sentences[:2]]
+        best_para_idx = matched_sentences[0][2]
         answer_body = " ".join(top_answers)
-        res = f"**Grounded Answer:**\n{answer_body}\n\n*(Extracted based on context match for key terms: {', '.join(list(q_words)[:4])})*"
+        res = f"**Grounded Answer:**\n{answer_body}\n\n**Source:** paragraph {best_para_idx}"
     else:
-        res = f"The provided document does not explicitly address: \"{question}\". Try rephrasing your question or checking key terms."
+        res = "The provided document does not contain enough information to answer this question."
 
     return {"result": res, "mode": "smart_engine"}
 
@@ -257,9 +276,8 @@ def suggest_next_actions(last_action: str) -> List[Dict[str, str]]:
     """
     suggestions_map = {
         "summarize": [
-            {"label": "📧 Draft Follow-up Email", "action": "generate", "prompt": "Write a formal follow-up email based on this summary"},
-            {"label": "🔍 Find Action Items", "action": "analyze", "prompt": "Extract action items and key responsibilities"},
-            {"label": "❓ Ask a Question", "action": "qa", "prompt": "What are the main timelines mentioned?"}
+            {"label": "⚡ Extract action items", "action": "analyze", "prompt": "extract_action_items"},
+            {"label": "📧 Generate a follow-up email", "action": "generate", "prompt": "Write a professional follow-up email based on this document."}
         ],
         "qa": [
             {"label": "📝 Summarize Document", "action": "summarize", "prompt": "medium"},
@@ -268,13 +286,12 @@ def suggest_next_actions(last_action: str) -> List[Dict[str, str]]:
         ],
         "generate": [
             {"label": "⚡ Extract Action Items", "action": "analyze", "prompt": ""},
-            {"label": "🔍 Ask a Question", "action": "qa", "prompt": "What are the key dependencies?"},
+            {"label": "🔍 Ask a Question", "action": "qa", "prompt": ""},
             {"label": "📄 Make Shorter Summary", "action": "summarize", "prompt": "short"}
         ],
         "analyze": [
-            {"label": "📧 Write Executive Email", "action": "generate", "prompt": "Write an executive briefing email with these action items"},
-            {"label": "📄 Detailed Summary", "action": "summarize", "prompt": "detailed"},
-            {"label": "❓ Ask Question", "action": "qa", "prompt": "What is the biggest risk mentioned?"}
+            {"label": "❓ Ask a question about this", "action": "qa", "prompt": ""},
+            {"label": "📝 Generate a summary of the findings", "action": "summarize", "prompt": "medium"}
         ]
     }
 

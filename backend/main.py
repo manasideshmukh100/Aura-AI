@@ -25,7 +25,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for local development and web UI clients
+# Enable CORSp for local development and web UI clients
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -184,5 +184,5 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
-    print(f"🚀 Starting AI Smart Automation Agent Backend on http://{host}:{port}")
+    print(f"[AURA AI] Starting AI Smart Automation Agent Backend on http://{host}:{port}")
     uvicorn.run(app, host=host, port=port)

@@ -52,14 +52,22 @@ def test_ai_summarize():
 
 
 def test_ai_qa():
-    print("[TEST 3] Testing Grounded Q&A Feature...")
+    print("[TEST 3] Testing Grounded Q&A Feature with Source Citations...")
     q = "What is the launch date for AURA AI?"
     res = ai_service.answer_question(SAMPLE_TEXT, q)
     assert "result" in res, "Q&A output missing result."
     print(f"   Question: {q}")
     ans_clean = res['result'].encode('ascii', 'ignore').decode('ascii')
-    print(f"   Answer Preview: {ans_clean[:120]}...")
-    print("  -> PASSED: Grounded Q&A feature!")
+    print(f"   Answer Preview: {ans_clean}...")
+    assert "Source:" in res['result'] or "source:" in res['result'].lower(), "Q&A output missing source citation tag."
+    print("  -> PASSED: Grounded Q&A Source Citation!")
+
+    # Test unanswerable question
+    unans_q = "What is the stock price of Apple?"
+    unans_res = ai_service.answer_question(SAMPLE_TEXT, unans_q)
+    assert "does not contain enough information" in unans_res['result'].lower(), "Expected explicit no-info message for unanswerable question."
+    assert "Source:" not in unans_res['result'], "Unanswerable question should NOT contain a source tag."
+    print("  -> PASSED: Unanswerable question explicitly skips source tag!")
 
 
 def test_ai_generate():
@@ -82,12 +90,21 @@ def test_ai_analyze():
 
 
 def test_suggested_actions():
-    print("[TEST 6] Testing Suggested Next Actions...")
-    actions = ai_service.suggest_next_actions("summarize")
-    assert len(actions) >= 2, "Expected at least 2 suggested next actions."
-    labels_clean = [a['label'].encode('ascii', 'ignore').decode('ascii') for a in actions]
-    print(f"   Suggestions: {labels_clean}")
-    print("  -> PASSED: Suggested Next Actions!")
+    print("[TEST 6] Testing Chained Action Workflow Suggestions...")
+    
+    # Summarize follow-up actions check
+    sum_actions = ai_service.suggest_next_actions("summarize")
+    sum_labels = [a['label'].lower() for a in sum_actions]
+    assert any("extract action items" in l for l in sum_labels), "Summarize suggestions missing 'Extract action items'"
+    assert any("follow-up email" in l for l in sum_labels), "Summarize suggestions missing 'Generate a follow-up email'"
+    print("  -> PASSED: Summarize workflow suggestions verified!")
+
+    # Analyze follow-up actions check
+    ana_actions = ai_service.suggest_next_actions("analyze")
+    ana_labels = [a['label'].lower() for a in ana_actions]
+    assert any("ask a question" in l for l in ana_labels), "Analyze suggestions missing 'Ask a question about this'"
+    assert any("summary of the findings" in l for l in ana_labels), "Analyze suggestions missing 'Generate a summary of the findings'"
+    print("  -> PASSED: Analyze workflow suggestions verified!")
 
 
 if __name__ == "__main__":

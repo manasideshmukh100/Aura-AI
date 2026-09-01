@@ -109,6 +109,7 @@ class AppController {
     this.suggestedSection = document.getElementById('suggestedSection');
     this.suggestedChips = document.getElementById('suggestedChips');
     this.resultFooter = document.getElementById('resultFooter');
+    this.workflowButtons = document.getElementById('workflowButtons');
     this.engineBadge = document.getElementById('engineBadge');
 
     // Action footer buttons
@@ -417,6 +418,7 @@ class AppController {
   }
 
   clientSideAIFallback(action, text, payload) {
+    const paragraphs = text.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
     const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 8);
     let resultText = "";
 
@@ -433,11 +435,31 @@ class AppController {
       }
     } else if (action === 'qa') {
       const q = (payload.question || "").toLowerCase();
-      const matched = sentences.filter(s => q.split(' ').some(word => word.length > 3 && s.toLowerCase().includes(word)));
-      if (matched.length > 0) {
-        resultText = `**Grounded Answer:**\n${matched.slice(0, 3).join(' ')}`;
+      const stopWords = new Set(["what", "is", "the", "how", "why", "where", "who", "when", "does", "do", "in", "on", "a", "an", "to", "for", "of", "and", "or", "with", "are", "was", "were", "be", "been", "can", "could", "would", "should", "tell", "me", "about"]);
+      const qWords = (q.match(/\w+/g) || []).filter(w => !stopWords.has(w));
+
+      let matched = [];
+      const paraList = paragraphs.length > 0 ? paragraphs : [text.trim()];
+
+      paraList.forEach((p, pIdx) => {
+        const sList = p.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 5);
+        sList.forEach(s => {
+          const sWords = new Set((s.toLowerCase().match(/\w+/g) || []));
+          const overlap = qWords.filter(w => sWords.has(w)).length;
+          if (overlap > 0) {
+            matched.push({ overlap, text: s.trim(), paraIndex: pIdx + 1 });
+          }
+        });
+      });
+
+      matched.sort((a, b) => b.overlap - a.overlap);
+
+      if (matched.length > 0 && matched[0].overlap >= 1) {
+        const topAnswers = matched.slice(0, 2).map(m => m.text).join(' ');
+        const bestPara = matched[0].paraIndex;
+        resultText = `**Grounded Answer:**\n${topAnswers}\n\n**Source:** paragraph ${bestPara}`;
       } else {
-        resultText = `**Grounded Answer:**\nBased strictly on the provided text context, ${sentences[0] || text.substring(0, 200)}.`;
+        resultText = `The provided document does not contain enough information to answer this question.`;
       }
     } else if (action === 'generate') {
       const instr = payload.instruction || "Write a follow-up email";
@@ -447,28 +469,107 @@ class AppController {
       resultText = `### 📊 Document Intelligence Report\n\n**Tone & Sentiment:** Professional & Informative 🟢\n\n**📌 Key Findings:**\n${bullets}\n\n**⚡ Recommended Actions:**\n- Review timelines and confirm stakeholder alignment.\n- Prepare execution breakdown for upcoming milestones.`;
     }
 
-    const suggestions = [
-      { label: "📧 Draft Follow-up Email", action: "generate", prompt: "Write an email based on this output" },
-      { label: "⚡ Extract Action Items", action: "analyze", prompt: "" },
-      { label: "❓ Ask Question", action: "qa", prompt: "What are the main risks?" }
-    ];
+    let suggestions = [];
+    if (action === 'summarize') {
+      suggestions = [
+        { label: "⚡ Extract action items", action: "analyze", prompt: "extract_action_items" },
+        { label: "📧 Generate a follow-up email", action: "generate", prompt: "Write a professional follow-up email based on this document." }
+      ];
+    } else if (action === 'analyze') {
+      suggestions = [
+        { label: "❓ Ask a question about this", action: "qa", prompt: "" },
+        { label: "📝 Generate a summary of the findings", action: "summarize", prompt: "medium" }
+      ];
+    } else if (action === 'qa') {
+      suggestions = [
+        { label: "📝 Summarize Document", action: "summarize", prompt: "medium" },
+        { label: "📊 Full Analysis Report", action: "analyze", prompt: "" }
+      ];
+    } else {
+      suggestions = [
+        { label: "⚡ Extract Action Items", action: "analyze", prompt: "" },
+        { label: "🔍 Ask a Question", action: "qa", prompt: "" }
+      ];
+    }
 
     return { result: resultText, suggested_actions: suggestions };
   }
 
+  handleSuggestionClick(item) {
+    if (!item) return;
+
+    // Switch action card visually
+    const actionCard = document.querySelector(`[data-action="${item.action}"]`);
+    if (actionCard) actionCard.click();
+
+    if (item.action === 'qa') {
+      if (item.prompt) {
+        this.questionInput.value = item.prompt;
+      }
+      this.questionInput.focus();
+      if (window.mascot) {
+        window.mascot.setMood('thinking', "What question would you like to ask about this document?");
+      }
+      // If prompt is empty (e.g. "Ask a question about this"), pre-focus input without running immediately
+      if (!item.prompt || !item.prompt.trim()) return;
+    } else if (item.action === 'generate') {
+      if (item.prompt) {
+        this.instructionInput.value = item.prompt;
+      }
+    } else if (item.action === 'summarize') {
+      if (item.prompt && (item.prompt === 'short' || item.prompt === 'medium' || item.prompt === 'detailed')) {
+        this.summaryLengthSelect.value = item.prompt;
+      }
+    }
+
+    // Auto-execute using current document
+    this.executeAction();
+  }
+
   renderResult(markdownText, mode, suggestedActions = []) {
+    let rawText = markdownText;
+    let sourceTagHtml = "";
+
+    // Extract & format Source Citation tag if present
+    const sourceMatch = rawText.match(/(?:\*\*Source:\*\*|Source:)\s*(.*?)(\n|$)/i);
+    if (sourceMatch) {
+      const citation = sourceMatch[1].trim();
+      if (citation) {
+        sourceTagHtml = `<div class="source-tag-card"><span class="source-tag-badge">📌 Source</span> <span class="source-tag-text">${citation}</span></div>`;
+      }
+      rawText = rawText.replace(/(?:\*\*Source:\*\*|Source:)\s*.*?(?:\n|$)/gi, '');
+    }
+
     // Basic Markdown Formatting
-    let html = markdownText
+    let html = rawText
       .replace(/### (.*?)\n/g, '<h3>$1</h3>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/• (.*?)\n/g, '<li>$1</li>')
       .replace(/- (.*?)\n/g, '<li>$1</li>')
       .replace(/\n\n/g, '<br><br>');
 
+    if (sourceTagHtml) {
+      html += `<br><br>${sourceTagHtml}`;
+    }
+
     this.resultBody.innerHTML = html;
     this.resultFooter.classList.remove('hidden');
 
-    // Render Suggested Next Actions Chips
+    // Render Secondary Workflow Buttons near Copy/Download in resultFooter
+    if (this.workflowButtons) {
+      this.workflowButtons.innerHTML = '';
+      if (suggestedActions && suggestedActions.length > 0) {
+        suggestedActions.forEach(item => {
+          const btn = document.createElement('button');
+          btn.className = 'glass-btn btn-sm workflow-btn';
+          btn.textContent = item.label;
+          btn.addEventListener('click', () => this.handleSuggestionClick(item));
+          this.workflowButtons.appendChild(btn);
+        });
+      }
+    }
+
+    // Render Suggested Next Actions Chips Bar
     if (suggestedActions && suggestedActions.length > 0) {
       this.suggestedSection.classList.remove('hidden');
       this.suggestedChips.innerHTML = '';
@@ -477,19 +578,7 @@ class AppController {
         const chip = document.createElement('button');
         chip.className = 'suggest-chip';
         chip.textContent = item.label;
-        chip.addEventListener('click', () => {
-          // Auto switch action and run
-          const actionBtn = document.querySelector(`[data-action="${item.action}"]`);
-          if (actionBtn) actionBtn.click();
-
-          if (item.action === 'qa' && item.prompt) {
-            this.questionInput.value = item.prompt;
-          } else if (item.action === 'generate' && item.prompt) {
-            this.instructionInput.value = item.prompt;
-          }
-
-          this.executeAction();
-        });
+        chip.addEventListener('click', () => this.handleSuggestionClick(item));
         this.suggestedChips.appendChild(chip);
       });
     }
